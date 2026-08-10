@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>考勤出勤记录系统</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f6fb;
+    --card: #ffffff;
+    --border: #e3e8f0;
+    --text: #1f2733;
+    --muted: #6b7686;
+    --primary: #3b6ef5;
+    --primary-d: #2f59c7;
+    --danger: #e5484d;
+    --ok: #1f9d55;
+    --shadow: 0 1px 3px rgba(16,24,40,.06), 0 1px 2px rgba(16,24,40,.04);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+  }
+  header {
+    background: linear-gradient(135deg, #3b6ef5, #5b8def);
+    color: #fff;
+    padding: 18px 28px;
+    box-shadow: var(--shadow);
+  }
+  header h1 { margin: 0; font-size: 20px; font-weight: 650; }
+  header p { margin: 4px 0 0; opacity: .9; font-size: 13px; }
+  main { max-width: 1180px; margin: 0 auto; padding: 22px 20px 60px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow);
+  }
+  .card h2 { margin: 0 0 14px; font-size: 16px; font-weight: 650; }
+  .summary { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+  .stat {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px; box-shadow: var(--shadow);
+  }
+  .stat .label { color: var(--muted); font-size: 12px; }
+  .stat .value { font-size: 24px; font-weight: 700; margin-top: 6px; }
+  .stat .value small { font-size: 13px; font-weight: 500; color: var(--muted); }
+  .form-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+  }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .field input, .field select {
+    border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px;
+    font-size: 14px; outline: none; background: #fff; color: var(--text);
+  }
+  .field input:focus, .field select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,110,245,.12); }
+  .form-actions { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+  button {
+    border: none; border-radius: 8px; padding: 9px 16px; font-size: 13px;
+    font-weight: 600; cursor: pointer; transition: .15s;
+  }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-d); }
+  .btn-ghost { background: #eef1f7; color: var(--text); }
+  .btn-ghost:hover { background: #e2e7f1; }
+  .btn-danger { background: #fdecec; color: var(--danger); }
+  .btn-danger:hover { background: #fbdada; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 14px; }
+  .filters .field { min-width: 150px; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { background: #f7f9fc; color: var(--muted); font-weight: 650; position: sticky; top: 0; }
+  tbody tr:hover { background: #f9fbff; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.total-row { background: #eef4ff !important; font-weight: 700; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 99px; background: #eef1f7; color: var(--muted); font-size: 12px; }
+  .empty { text-align: center; color: var(--muted); padding: 30px; }
+  .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .seg button { background: #fff; color: var(--text); border-radius: 0; border-right: 1px solid var(--border); }
+  .seg button:last-child { border-right: none; }
+  .seg button.active { background: var(--primary); color: #fff; }
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #1f2733; color: #fff; padding: 10px 18px; border-radius: 8px;
+    font-size: 13px; opacity: 0; pointer-events: none; transition: .25s; z-index: 99;
+  }
+  .toast.show { opacity: 1; }
+  .toast.err { background: var(--danger); }
+  @media (max-width: 860px) {
+    .summary { grid-template-columns: repeat(2, 1fr); }
+    .form-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  .batch-grid input {
+    width: 100%; border: 1px solid var(--border); border-radius: 6px;
+    padding: 7px 8px; font-size: 13px; background: #fff; color: var(--text);
+  }
+  .batch-grid input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 2px rgba(59,110,245,.12); }
+  .batch-grid th, .batch-grid td { padding: 6px 8px; }
+  .imp-box { border: 1px solid var(--border); border-radius: 10px; padding: 14px; background: #fbfcfe; margin-top: 6px; }
+  .imp-maps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .imp-row { display: flex; flex-direction: column; gap: 4px; }
+  .imp-label { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .imp-map { border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 13px; background: #fff; color: var(--text); }
+  @media (max-width: 860px) { .imp-maps { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>考勤出勤记录系统</h1>
+  <p>记录人员出勤 · 自动汇总月度与总计 · 一键导出 Excel（多人共享版）</p>
+</header>
+
+<main>
+  <!-- 汇总卡片 -->
+  <div class="summary" id="summaryCards"></div>
+
+  <!-- 录入 -->
+  <section class="card" style="margin-top:20px;">
+    <h2 id="formTitle">录入考勤</h2>
+    <form id="recordForm" autocomplete="off">
+      <input type="hidden" id="editId" />
+      <div class="form-grid">
+        <div class="field">
+          <label>考勤日期 *</label>
+          <input type="date" id="f_date" required />
+        </div>
+        <div class="field">
+          <label>员工名字 *</label>
+          <input type="text" id="f_employee" placeholder="如：张三" required />
+        </div>
+        <div class="field">
+          <label>公司名 *</label>
+          <input type="text" id="f_company" placeholder="如：XX科技" required />
+        </div>
+        <div class="field">
+          <label>负责项目 *</label>
+          <input type="text" id="f_project" placeholder="如：A系统开发" required />
+        </div>
+        <div class="field">
+          <label>工时（小时）*</label>
+          <input type="number" id="f_hours" min="0" step="0.1" placeholder="0.0" required />
+        </div>
+        <div class="field">
+          <label>加班工时（小时）</label>
+          <input type="number" id="f_overtime" min="0" step="0.1" placeholder="0.0" value="0" />
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn-primary" id="submitBtn">添加记录</button>
+        <button type="button" class="btn-ghost" id="resetBtn">清空表单</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- 批量录入 -->
+  <section class="card">
+    <div class="toolbar" style="margin-bottom:8px;">
+      <h2 style="margin:0;">批量录入（适合每周集中补录）</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" class="btn-ghost btn-sm" id="batchFillWeek">填充上周工作日</button>
+        <button type="button" class="btn-ghost btn-sm" id="addBatchRow">添加一行</button>
+        <button type="button" class="btn-primary btn-sm" id="batchSubmit">批量提交</button>
+        <button type="button" class="btn-danger btn-sm" id="batchClear">清空行</button>
+      </div>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin:0 0 10px;">
+      每行一条考勤，可一次性提交多条；整行空白或不完整的行会被忽略。点「填充上周工作日」可把每行日期依次设为上周一至周五。
+    </p>
+    <div class="table-wrap">
+      <table class="batch-grid">
+        <thead>
+          <tr>
+            <th>考勤日期</th><th>员工名字</th><th>公司名</th><th>负责项目</th>
+            <th class="num">工时</th><th class="num">加班工时</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="batchBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 明细 -->
+  <section class="card">
+    <div class="toolbar" style="margin-bottom:14px;">
+      <h2 style="margin:0;">考勤明细</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" class="btn-ghost btn-sm" id="sampleBtn">加载示例数据</button>
+        <button type="button" class="btn-danger btn-sm" id="clearBtn">清空全部</button>
+      </div>
+    </div>
+    <div class="filters">
+      <div class="field">
+        <label>按员工</label>
+        <select id="filterEmployee" class="field-input"><option value="">全部</option></select>
+      </div>
+      <div class="field">
+        <label>按公司</label>
+        <select id="filterCompany" class="field-input"><option value="">全部</option></select>
+      </div>
+      <div class="field">
+        <label>按月份</label>
+        <select id="filterMonth" class="field-input"><option value="">全部</option></select>
+      </div>
+      <div class="field">
+        <label>关键字</label>
+        <input type="text" id="filterKeyword" placeholder="项目/姓名模糊搜索" />
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table id="detailTable">
+        <thead>
+          <tr>
+            <th>考勤日期</th>
+            <th>员工名字</th>
+            <th>公司名</th>
+            <th>负责项目</th>
+            <th class="num">工时</th>
+            <th class="num">加班工时</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="detailBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 统计 -->
+  <section class="card">
+    <div class="toolbar" style="margin-bottom:14px;">
+      <h2 style="margin:0;">统计汇总</h2>
+      <div class="seg">
+        <button id="tabEmployee" class="active" data-tab="employee">按员工</button>
+        <button id="tabCompany" data-tab="company">按公司</button>
+      </div>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin:0 0 10px;">
+      每条记录的「月份」行展示该人/该公司当月合计；底部「合计」行为当前累计总数。
+    </p>
+    <div class="table-wrap">
+      <table id="statTable">
+        <thead>
+          <tr>
+            <th id="statNameHead">员工</th>
+            <th>月份</th>
+            <th class="num">记录数</th>
+            <th class="num">工时合计</th>
+            <th class="num">加班合计</th>
+          </tr>
+        </thead>
+        <tbody id="statBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 导入 / 导出 -->
+  <section class="card">
+    <div class="toolbar" style="margin-bottom:12px;">
+      <h2 style="margin:0;">导入 / 导出</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" class="btn-ghost btn-sm" id="tplBtn">下载导入模板</button>
+        <button type="button" class="btn-ghost btn-sm" id="importBtn">导入 Excel/CSV</button>
+        <button type="button" class="btn-primary btn-sm" id="exportBtn">导出 Excel (.xlsx)</button>
+      </div>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin:0 0 10px;">
+      导出含三个工作表（考勤明细 / 按员工统计 / 按公司统计）。导入支持 .xlsx/.xls/.csv，会自动识别表头列并让你确认对应关系；导入前建议先「下载导入模板」对照格式。
+    </p>
+    <input type="file" id="importFile" accept=".xlsx,.xls,.csv" style="display:none" />
+    <div id="importPanel" style="display:none;"></div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+  var statMode = "employee"; // employee | company
+  var records = [];          // 始终等于后端返回的最新全量数据
+
+  // ---------- API 封装 ----------
+  function api(path, opts) {
+    opts = opts || {};
+    return fetch(path, {
+      method: opts.method || "GET",
+      headers: opts.body ? { "Content-Type": "application/json" } : {},
+      body: opts.body ? JSON.stringify(opts.body) : undefined
+    }).then(function (r) {
+      return r.json().then(function (d) {
+        if (!r.ok) throw new Error(d.error || ("请求失败 " + r.status));
+        return d;
+      });
+    });
+  }
+  async function reload() {
+    try {
+      var d = await api("/api/records");
+      records = (d && d.records) || [];
+    } catch (e) { toast("加载数据失败：" + e.message, true); }
+    renderAll();
+  }
+
+  // ---------- 工具 ----------
+  function $(id) { return document.getElementById(id); }
+  function round1(n) { return Math.round((Number(n) || 0) * 10) / 10; }
+  function monthOf(dateStr) { return (dateStr || "").slice(0, 7); }
+  function escapeHtml(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+  function todayStr() {
+    var d = new Date();
+    var m = String(d.getMonth() + 1).padStart(2, "0");
+    var day = String(d.getDate()).padStart(2, "0");
+    return d.getFullYear() + "-" + m + "-" + day;
+  }
+
+  var toastTimer;
+  function toast(msg, isErr) {
+    var t = $("toast");
+    t.textContent = msg;
+    t.className = "toast show" + (isErr ? " err" : "");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.className = "toast"; }, 2200);
+  }
+
+  // ---------- 表单 ----------
+  function resetForm() {
+    $("recordForm").reset();
+    $("editId").value = "";
+    $("f_overtime").value = "0";
+    $("f_date").value = todayStr();
+    $("formTitle").textContent = "录入考勤";
+    $("submitBtn").textContent = "添加记录";
+  }
+
+  $("recordForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var date = $("f_date").value;
+    var employee = $("f_employee").value.trim();
+    var company = $("f_company").value.trim();
+    var project = $("f_project").value.trim();
+    var hours = parseFloat($("f_hours").value);
+    var overtime = parseFloat($("f_overtime").value || "0");
+
+    if (!date || !employee || !company || !project) {
+      toast("请填写所有必填项（带 * 号）", true); return;
+    }
+    if (isNaN(hours) || hours < 0) { toast("工时必须为不小于 0 的数字", true); return; }
+    if (isNaN(overtime) || overtime < 0) { toast("加班工时必须为不小于 0 的数字", true); return; }
+
+    var payload = {
+      date: date, employee: employee, company: company, project: project,
+      hours: round1(hours), overtime: round1(overtime)
+    };
+    try {
+      var editId = $("editId").value;
+      if (editId) {
+        await api("/api/records/" + editId, { method: "PUT", body: payload });
+        toast("已更新记录");
+      } else {
+        await api("/api/records", { method: "POST", body: payload });
+        toast("已添加记录");
+      }
+    } catch (err) { toast(err.message, true); return; }
+    resetForm();
+    reload();
+  });
+
+  $("resetBtn").addEventListener("click", resetForm);
+
+  function editRecord(id) {
+    var r = records.find(function (x) { return x.id === id; });
+    if (!r) return;
+    $("editId").value = r.id;
+    $("f_date").value = r.date;
+    $("f_employee").value = r.employee;
+    $("f_company").value = r.company;
+    $("f_project").value = r.project;
+    $("f_hours").value = r.hours;
+    $("f_overtime").value = r.overtime;
+    $("formTitle").textContent = "编辑考勤（" + r.employee + " · " + r.date + "）";
+    $("submitBtn").textContent = "保存修改";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function deleteRecord(id) {
+    if (!confirm("确定删除这条记录吗？")) return;
+    try { await api("/api/records/" + id, { method: "DELETE" }); }
+    catch (err) { toast(err.message, true); return; }
+    if ($("editId").value === id) resetForm();
+    toast("已删除");
+    reload();
+  }
+
+  // ---------- 汇总卡片 ----------
+  function renderSummary() {
+    var totalHours = 0, totalOt = 0;
+    var empSet = {}, compSet = {};
+    records.forEach(function (r) {
+      totalHours += r.hours; totalOt += r.overtime;
+      empSet[r.employee] = 1; compSet[r.company] = 1;
+    });
+    var cards = [
+      { label: "记录总数", value: records.length },
+      { label: "工时合计", value: round1(totalHours), unit: "h" },
+      { label: "加班合计", value: round1(totalOt), unit: "h" },
+      { label: "员工人数", value: Object.keys(empSet).length },
+      { label: "公司数量", value: Object.keys(compSet).length }
+    ];
+    $("summaryCards").innerHTML = cards.map(function (c) {
+      return '<div class="stat"><div class="label">' + c.label + '</div>' +
+        '<div class="value">' + c.value + (c.unit ? ' <small>' + c.unit + '</small>' : '') + '</div></div>';
+    }).join("");
+  }
+
+  // ---------- 明细 + 筛选 ----------
+  function getFiltered() {
+    var fe = $("filterEmployee").value;
+    var fc = $("filterCompany").value;
+    var fm = $("filterMonth").value;
+    var kw = $("filterKeyword").value.trim().toLowerCase();
+    return records.filter(function (r) {
+      if (fe && r.employee !== fe) return false;
+      if (fc && r.company !== fc) return false;
+      if (fm && monthOf(r.date) !== fm) return false;
+      if (kw && (r.project + r.employee + r.company).toLowerCase().indexOf(kw) === -1) return false;
+      return true;
+    }).sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
+  }
+
+  function renderDetail() {
+    var list = getFiltered();
+    var body = $("detailBody");
+    if (!list.length) {
+      body.innerHTML = '<tr><td colspan="7" class="empty">暂无数据，请在上方录入或点击「加载示例数据」。</td></tr>';
+      return;
+    }
+    body.innerHTML = list.map(function (r) {
+      return '<tr>' +
+        '<td>' + escapeHtml(r.date) + '</td>' +
+        '<td>' + escapeHtml(r.employee) + '</td>' +
+        '<td>' + escapeHtml(r.company) + '</td>' +
+        '<td>' + escapeHtml(r.project) + '</td>' +
+        '<td class="num">' + r.hours + '</td>' +
+        '<td class="num">' + r.overtime + '</td>' +
+        '<td>' +
+          '<button class="btn-ghost btn-sm" data-edit="' + r.id + '">编辑</button> ' +
+          '<button class="btn-danger btn-sm" data-del="' + r.id + '">删除</button>' +
+        '</td>' +
+      '</tr>';
+    }).join("");
+  }
+
+  $("detailBody").addEventListener("click", function (e) {
+    var ed = e.target.getAttribute("data-edit");
+    var dl = e.target.getAttribute("data-del");
+    if (ed) editRecord(ed);
+    else if (dl) deleteRecord(dl);
+  });
+
+  function refreshFilterOptions() {
+    var emps = [], comps = [], months = [];
+    records.forEach(function (r) {
+      if (emps.indexOf(r.employee) === -1) emps.push(r.employee);
+      if (comps.indexOf(r.company) === -1) comps.push(r.company);
+      var m = monthOf(r.date);
+      if (months.indexOf(m) === -1) months.push(m);
+    });
+    emps.sort(); comps.sort(); months.sort();
+    fillSelect($("filterEmployee"), emps);
+    fillSelect($("filterCompany"), comps);
+    fillSelect($("filterMonth"), months);
+  }
+  function fillSelect(sel, items) {
+    var cur = sel.value;
+    sel.innerHTML = '<option value="">全部</option>' +
+      items.map(function (v) { return '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</option>'; }).join("");
+    if (items.indexOf(cur) !== -1) sel.value = cur;
+  }
+
+  ["filterEmployee", "filterCompany", "filterMonth", "filterKeyword"].forEach(function (id) {
+    $(id).addEventListener("input", renderDetail);
+    $(id).addEventListener("change", renderDetail);
+  });
+
+  // ---------- 统计 ----------
+  function computeStats(key) {
+    var groups = {}; // name -> { month -> {hours, overtime, count} }
+    records.forEach(function (r) {
+      var name = r[key];
+      var m = monthOf(r.date);
+      if (!groups[name]) groups[name] = {};
+      if (!groups[name][m]) groups[name][m] = { hours: 0, overtime: 0, count: 0 };
+      groups[name][m].hours += r.hours;
+      groups[name][m].overtime += r.overtime;
+      groups[name][m].count += 1;
+    });
+    var rows = [];
+    Object.keys(groups).sort().forEach(function (name) {
+      var totH = 0, totO = 0, totC = 0;
+      Object.keys(groups[name]).sort().forEach(function (m) {
+        var g = groups[name][m];
+        rows.push({ name: name, month: m, count: g.count, hours: round1(g.hours), overtime: round1(g.overtime), total: false });
+        totH += g.hours; totO += g.overtime; totC += g.count;
+      });
+      rows.push({ name: name, month: "合计", count: totC, hours: round1(totH), overtime: round1(totO), total: true });
+    });
+    return rows;
+  }
+
+  function renderStats() {
+    var rows = computeStats(statMode);
+    $("statNameHead").textContent = statMode === "employee" ? "员工" : "公司";
+    var body = $("statBody");
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="5" class="empty">暂无统计数据。</td></tr>';
+      return;
+    }
+    body.innerHTML = rows.map(function (r) {
+      return '<tr class="' + (r.total ? "total-row" : "") + '">' +
+        '<td>' + escapeHtml(r.name) + '</td>' +
+        '<td>' + escapeHtml(r.month) + '</td>' +
+        '<td class="num">' + r.count + '</td>' +
+        '<td class="num">' + r.hours + '</td>' +
+        '<td class="num">' + r.overtime + '</td>' +
+      '</tr>';
+    }).join("");
+  }
+
+  $("tabEmployee").addEventListener("click", function () {
+    statMode = "employee";
+    $("tabEmployee").classList.add("active");
+    $("tabCompany").classList.remove("active");
+    renderStats();
+  });
+  $("tabCompany").addEventListener("click", function () {
+    statMode = "company";
+    $("tabCompany").classList.add("active");
+    $("tabEmployee").classList.remove("active");
+    renderStats();
+  });
+
+  // ---------- 导出 ----------
+  function exportExcel() {
+    if (typeof XLSX === "undefined") {
+      toast("导出组件未加载（需联网加载 SheetJS），请检查网络后重试", true);
+      return;
+    }
+    if (!records.length) { toast("没有数据可导出", true); return; }
+
+    var detailRows = records.slice().sort(function (a, b) {
+      return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
+    }).map(function (r) {
+      return { 考勤日期: r.date, 员工名字: r.employee, 公司名: r.company, 负责项目: r.project, 工时: r.hours, 加班工时: r.overtime };
+    });
+    var empRows = computeStats("employee").map(function (r) {
+      return { 员工: r.name, 月份: r.month, 记录数: r.count, 工时合计: r.hours, 加班合计: r.overtime };
+    });
+    var compRows = computeStats("company").map(function (r) {
+      return { 公司: r.name, 月份: r.month, 记录数: r.count, 工时合计: r.hours, 加班合计: r.overtime };
+    });
+
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detailRows), "考勤明细");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(empRows), "按员工统计");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(compRows), "按公司统计");
+    XLSX.writeFile(wb, "考勤记录_" + todayStr() + ".xlsx");
+    toast("导出成功");
+  }
+  $("exportBtn").addEventListener("click", exportExcel);
+
+  // ---------- 示例 / 清空 ----------
+  $("sampleBtn").addEventListener("click", async function () {
+    if (records.length && !confirm("将向现有数据追加示例记录，继续？")) return;
+    try {
+      var d = await api("/api/seed", { method: "POST" });
+      toast("已加载示例数据（" + d.added + " 条）");
+    } catch (err) { toast(err.message, true); return; }
+    reload();
+  });
+
+  $("clearBtn").addEventListener("click", async function () {
+    if (!records.length) { toast("当前没有数据", true); return; }
+    if (!confirm("确定清空全部考勤记录？此操作不可恢复！")) return;
+    try { await api("/api/reset", { method: "POST" }); }
+    catch (err) { toast(err.message, true); return; }
+    resetForm();
+    toast("已清空全部数据");
+    reload();
+  });
+
+  // ---------- 批量录入 ----------
+  function batchRowHtml() {
+    return '<tr>' +
+      '<td><input type="date" class="b-input b-date" value="' + todayStr() + '"></td>' +
+      '<td><input type="text" class="b-input b-employee" placeholder="员工"></td>' +
+      '<td><input type="text" class="b-input b-company" placeholder="公司"></td>' +
+      '<td><input type="text" class="b-input b-project" placeholder="项目"></td>' +
+      '<td class="num"><input type="number" class="b-input b-hours" min="0" step="0.1" placeholder="0"></td>' +
+      '<td class="num"><input type="number" class="b-input b-ot" min="0" step="0.1" placeholder="0"></td>' +
+      '<td><button type="button" class="btn-danger btn-sm b-del">删</button></td>' +
+    '</tr>';
+  }
+  function addBatchRow() {
+    $("batchBody").insertAdjacentHTML("beforeend", batchRowHtml());
+  }
+  function addWorkdays(base, n) {
+    var d = new Date(base.getTime());
+    var added = 0;
+    while (added < n) {
+      d.setDate(d.getDate() + 1);
+      var wd = d.getDay();
+      if (wd !== 0 && wd !== 6) added++;
+    }
+    return d;
+  }
+  function lastWeekMonday() {
+    var now = new Date();
+    var dow = (now.getDay() + 6) % 7; // 周一 = 0
+    var thisMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow);
+    return new Date(thisMonday.getFullYear(), thisMonday.getMonth(), thisMonday.getDate() - 7);
+  }
+  $("addBatchRow").addEventListener("click", addBatchRow);
+  $("batchClear").addEventListener("click", function () {
+    $("batchBody").innerHTML = "";
+    for (var i = 0; i < 5; i++) addBatchRow();
+  });
+  $("batchFillWeek").addEventListener("click", function () {
+    var mon = lastWeekMonday();
+    var rows = $("batchBody").querySelectorAll("tr");
+    if (!rows.length) { toast("请先添加行", true); return; }
+    rows.forEach(function (tr, i) {
+      tr.querySelector(".b-date").value = fmtDate(addWorkdays(mon, i));
+    });
+    toast("已填充上周工作日");
+  });
+  $("batchSubmit").addEventListener("click", async function () {
+    var rows = $("batchBody").querySelectorAll("tr");
+    var payloads = [], skipped = 0;
+    rows.forEach(function (tr) {
+      var date = tr.querySelector(".b-date").value;
+      var employee = tr.querySelector(".b-employee").value.trim();
+      var company = tr.querySelector(".b-company").value.trim();
+      var project = tr.querySelector(".b-project").value.trim();
+      var hours = parseFloat(tr.querySelector(".b-hours").value);
+      var ot = parseFloat(tr.querySelector(".b-ot").value || "0");
+      var allEmpty = !date && !employee && !company && !project && isNaN(hours);
+      if (allEmpty) { skipped++; return; }
+      if (!date || !employee || !company || !project) { skipped++; return; }
+      if (isNaN(hours) || hours < 0) { skipped++; return; }
+      if (isNaN(ot) || ot < 0) ot = 0;
+      payloads.push({ date: date, employee: employee, company: company, project: project, hours: round1(hours), overtime: round1(ot) });
+    });
+    if (!payloads.length) { toast("没有有效行可提交（空白/不完整行已忽略）", true); return; }
+    try {
+      var d = await api("/api/records/bulk", { method: "POST", body: { records: payloads } });
+      toast("成功提交 " + d.added + " 条" + (skipped ? "，忽略 " + skipped + " 条空白/不完整行" : ""));
+    } catch (err) { toast(err.message, true); return; }
+    $("batchBody").innerHTML = "";
+    for (var i = 0; i < 5; i++) addBatchRow();
+    reload();
+  });
+  $("batchBody").addEventListener("click", function (e) {
+    if (e.target.classList.contains("b-del")) {
+      var tr = e.target.closest("tr");
+      if (tr) tr.remove();
+    }
+  });
+
+  // ---------- 导入 ----------
+  var IMPORT_FIELDS = [
+    { key: "date", label: "考勤日期", aliases: ["考勤日期","日期","考勤日","考勤","工作日","date","day"] },
+    { key: "employee", label: "员工名字", aliases: ["员工名字","员工","姓名","名字","人员","name","employee","emp"] },
+    { key: "company", label: "公司名", aliases: ["公司名","公司","单位","company","firm","corp"] },
+    { key: "project", label: "负责项目", aliases: ["负责项目","项目","project","task"] },
+    { key: "hours", label: "工时", aliases: ["工时","小时","工作时长","工作小时","hours","workhours"] },
+    { key: "overtime", label: "加班工时", aliases: ["加班工时","加班","overtime","ot"] }
+  ];
+  function fmtDate(d) {
+    var y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0");
+    return y + "-" + m + "-" + day;
+  }
+  function toDateStr(v) {
+    if (v == null || v === "") return "";
+    if (v instanceof Date) return fmtDate(v);
+    if (typeof v === "number") {
+      if (v > 20000 && v < 80000) return fmtDate(new Date((v - 25569) * 86400 * 1000)); // Excel 日期序列号
+      return String(v);
+    }
+    var s = String(v).trim().replace(/\//g, "-");
+    var m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return m[1] + "-" + String(m[2]).padStart(2, "0") + "-" + String(m[3]).padStart(2, "0");
+    return s;
+  }
+  function toNum(v) {
+    if (v == null || v === "") return NaN;
+    if (typeof v === "number") return v;
+    return parseFloat(String(v).replace(/,/g, "").trim());
+  }
+  var importState = null;
+  $("tplBtn").addEventListener("click", function () {
+    if (typeof XLSX === "undefined") { toast("模板组件未加载（需联网）", true); return; }
+    var aoa = [["考勤日期","员工名字","公司名","负责项目","工时","加班工时"], ["2026-08-04","张三","星辰科技","官网改版",8,2]];
+    var ws = XLSX.utils.aoa_to_sheet(aoa);
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "考勤模板");
+    XLSX.writeFile(wb, "考勤导入模板.xlsx");
+    toast("模板已下载");
+  });
+  $("importBtn").addEventListener("click", function () {
+    if (typeof XLSX === "undefined") { toast("导入组件未加载（需联网加载 SheetJS）", true); return; }
+    $("importFile").click();
+  });
+  $("importFile").addEventListener("change", function (e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function (ev) {
+      try {
+        var data = new Uint8Array(ev.target.result);
+        var wb = XLSX.read(data, { type: "array" });
+        var sheet = wb.Sheets[wb.SheetNames[0]];
+        var raw = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, defval: "" });
+        if (!raw.length) { toast("文件为空", true); return; }
+        var bestIdx = -1, bestScore = -1, bestMap = null;
+        for (var i = 0; i < Math.min(raw.length, 15); i++) {
+          var r = raw[i] || [];
+          var map = {}, score = 0;
+          IMPORT_FIELDS.forEach(function (f) {
+            for (var c = 0; c < r.length; c++) {
+              if (r[c] != null && f.aliases.indexOf(String(r[c]).trim().toLowerCase()) !== -1) { map[f.key] = c; score++; break; }
+            }
+          });
+          if (score > bestScore) { bestScore = score; bestIdx = i; bestMap = map; }
+        }
+        if (bestScore < 3) {
+          toast("未自动识别到表头列，请先用「下载导入模板」对照列名再导入", true);
+          return;
+        }
+        importState = { headers: raw[bestIdx], rows: raw.slice(bestIdx + 1), map: bestMap };
+        renderImportPanel();
+      } catch (err) { toast("解析文件失败：" + err.message, true); }
+      e.target.value = "";
+    };
+    reader.readAsArrayBuffer(file);
+  });
+  function renderImportPanel() {
+    var st = importState;
+    var headerOpts = st.headers.map(function (h, i) {
+      return '<option value="' + i + '">' + escapeHtml(h === "" ? "(列" + (i + 1) + ")" : h) + '</option>';
+    }).join("");
+    var maps = IMPORT_FIELDS.map(function (f) {
+      return '<div class="imp-row"><span class="imp-label">' + f.label + (f.key === "overtime" ? "（选填）" : " *") + '</span>' +
+        '<select class="imp-map" data-key="' + f.key + '"><option value="">— 不匹配 —</option>' + headerOpts + '</select></div>';
+    }).join("");
+    var preview = st.rows.slice(0, 5).map(function (r) {
+      return '<tr>' + st.headers.map(function (_, i) { return '<td>' + escapeHtml(r[i] == null ? "" : r[i]) + '</td>'; }).join("") + '</tr>';
+    }).join("");
+    var headRow = '<tr>' + st.headers.map(function (h) { return '<th>' + escapeHtml(h === "" ? "列" : h) + '</th>'; }).join("") + '</tr>';
+    $("importPanel").innerHTML =
+      '<div class="imp-box">' +
+        '<p style="font-weight:600;margin:0 0 8px;">请确认列对应关系（已自动识别，可手动调整）</p>' +
+        '<div class="imp-maps">' + maps + '</div>' +
+        '<p style="color:var(--muted);font-size:12px;margin:12px 0 4px;">数据预览（前 5 行）：</p>' +
+        '<div class="table-wrap"><table><thead>' + headRow + '</thead><tbody>' + preview + '</tbody></table></div>' +
+        '<div class="form-actions" style="margin-top:12px;">' +
+          '<button type="button" class="btn-primary btn-sm" id="impConfirm">确认导入</button>' +
+          '<button type="button" class="btn-ghost btn-sm" id="impCancel">取消</button>' +
+        '</div>' +
+      '</div>';
+    IMPORT_FIELDS.forEach(function (f) {
+      var sel = $("importPanel").querySelector('.imp-map[data-key="' + f.key + '"]');
+      if (st.map[f.key] != null) sel.value = st.map[f.key];
+    });
+    $("importPanel").style.display = "block";
+    $("impConfirm").addEventListener("click", confirmImport);
+    $("impCancel").addEventListener("click", function () { $("importPanel").style.display = "none"; importState = null; });
+  }
+  async function confirmImport() {
+    var st = importState; if (!st) return;
+    var idx = {};
+    IMPORT_FIELDS.forEach(function (f) {
+      var sel = $("importPanel").querySelector('.imp-map[data-key="' + f.key + '"]');
+      var v = sel.value;
+      idx[f.key] = v === "" ? null : parseInt(v, 10);
+    });
+    if (idx.date == null || idx.employee == null || idx.company == null || idx.project == null || idx.hours == null) {
+      toast("考勤日期、员工名字、公司名、负责项目、工时必须指定对应列", true); return;
+    }
+    var payloads = [], skipped = 0;
+    st.rows.forEach(function (r) {
+      var date = toDateStr(r[idx.date]);
+      var employee = r[idx.employee] == null ? "" : String(r[idx.employee]).trim();
+      var company = r[idx.company] == null ? "" : String(r[idx.company]).trim();
+      var project = r[idx.project] == null ? "" : String(r[idx.project]).trim();
+      var hours = toNum(r[idx.hours]);
+      var ot = idx.overtime != null ? toNum(r[idx.overtime]) : 0;
+      if (!date || !employee || !company || !project || isNaN(hours) || hours < 0) { skipped++; return; }
+      payloads.push({ date: date, employee: employee, company: company, project: project, hours: round1(hours), overtime: round1(isNaN(ot) || ot < 0 ? 0 : ot) });
+    });
+    if (!payloads.length) { toast("没有有效数据可导入（" + skipped + " 行被跳过）", true); return; }
+    try {
+      var d = await api("/api/records/bulk", { method: "POST", body: { records: payloads } });
+      toast("成功导入 " + d.added + " 条" + (skipped ? "，跳过 " + skipped + " 行" : ""));
+    } catch (err) { toast(err.message, true); return; }
+    $("importPanel").style.display = "none"; importState = null;
+    reload();
+  }
+
+  // ---------- 渲染总入口 ----------
+  function renderAll() {
+    refreshFilterOptions();
+    renderSummary();
+    renderDetail();
+    renderStats();
+  }
+
+  // ---------- 初始化 ----------
+  resetForm();
+  for (var i = 0; i < 5; i++) addBatchRow();
+  reload();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "attendance-app",
+  "version": "1.0.0",
+  "description": "考勤出勤记录系统（多人共享全栈版）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "private": true
+}
