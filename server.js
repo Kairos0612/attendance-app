@@ -38,7 +38,7 @@ function cleanRecord(r) {
   const company = String(r.company || "").trim();
   const project = String(r.project || "").trim();
   const testType = String(r.testType || "").trim().toUpperCase();
-  if (testType && testType !== "SIT" && testType !== "UAT") return { error: "测试类型只能是 SIT 或 UAT" };
+  if (testType !== "SIT" && testType !== "UAT") return { error: "测试类型必填，且只能是 SIT 或 UAT" };
   const hoursRaw = parseFloat(r.hours);
   if (isNaN(hoursRaw) || hoursRaw < 0) return { error: "工时必须为不小于 0 的数字" };
   const otRaw = parseFloat(r.overtime);
@@ -127,7 +127,7 @@ async function handle(req, res) {
         db.records.push(c.record); added.push(c.record);
       });
       saveDB(db);
-      return sendJson(res, 201, { added: added.length, errors });
+      return sendJson(res, 201, { added: added.length, skipped: arr.length - added.length, errors });
     }
     // 单条编辑 / 删除
     const m = p.match(/^\/api\/records\/([\w-]+)$/);

@@ -156,9 +156,9 @@
           <input type="number" id="f_overtime" min="0" step="0.1" placeholder="0.0" value="0" />
         </div>
         <div class="field">
-          <label>测试类型</label>
+          <label>测试类型 <span style="color:#e5484d">*</span></label>
           <select id="f_testType">
-            <option value="">（选填）</option>
+            <option value="">请选择</option>
             <option value="SIT">SIT</option>
             <option value="UAT">UAT</option>
           </select>
@@ -368,6 +368,9 @@
 
     if (!date || !employee || !company || !project) {
       toast("请填写所有必填项（带 * 号）", true); return;
+    }
+    if (!testType || (testType !== "SIT" && testType !== "UAT")) {
+      toast("请选择测试类型（SIT 或 UAT）", true); return;
     }
     if (isNaN(hours) || hours < 0) { toast("工时必须为不小于 0 的数字", true); return; }
     if (isNaN(overtime) || overtime < 0) { toast("加班工时必须为不小于 0 的数字", true); return; }
@@ -625,7 +628,7 @@
       '<td><input type="text" class="b-input b-project" placeholder="项目"></td>' +
       '<td class="num"><input type="number" class="b-input b-hours" min="0" step="0.1" placeholder="0"></td>' +
       '<td class="num"><input type="number" class="b-input b-ot" min="0" step="0.1" placeholder="0"></td>' +
-      '<td><select class="b-input b-testType"><option value="">（选填）</option><option value="SIT">SIT</option><option value="UAT">UAT</option></select></td>' +
+      '<td><select class="b-input b-testType"><option value="">请选择 *</option><option value="SIT">SIT</option><option value="UAT">UAT</option></select></td>' +
       '<td><button type="button" class="btn-danger btn-sm b-del">删</button></td>' +
     '</tr>';
   }
@@ -677,6 +680,7 @@
       if (allEmpty) { skipped++; return; }
       if (!date || !employee || !company || !project) { skipped++; return; }
       if (isNaN(hours) || hours < 0) { skipped++; return; }
+      if (!testType || (testType !== "SIT" && testType !== "UAT")) { skipped++; return; }
       if (isNaN(ot) || ot < 0) ot = 0;
       payloads.push({ date: date, employee: employee, company: company, project: project, testType: testType, hours: round1(hours), overtime: round1(ot) });
     });
@@ -780,7 +784,7 @@
       return '<option value="' + i + '">' + escapeHtml(h === "" ? "(列" + (i + 1) + ")" : h) + '</option>';
     }).join("");
     var maps = IMPORT_FIELDS.map(function (f) {
-      return '<div class="imp-row"><span class="imp-label">' + f.label + (f.key === "overtime" || f.key === "testType" ? "（选填）" : " *") + '</span>' +
+      return '<div class="imp-row"><span class="imp-label">' + f.label + (f.key === "overtime" ? "（选填）" : " *") + '</span>' +
         '<select class="imp-map" data-key="' + f.key + '"><option value="">— 不匹配 —</option>' + headerOpts + '</select></div>';
     }).join("");
     var preview = st.rows.slice(0, 5).map(function (r) {
@@ -814,8 +818,8 @@
       var v = sel.value;
       idx[f.key] = v === "" ? null : parseInt(v, 10);
     });
-    if (idx.date == null || idx.employee == null || idx.company == null || idx.project == null || idx.hours == null) {
-      toast("考勤日期、员工名字、公司名、负责项目、工时必须指定对应列", true); return;
+    if (idx.date == null || idx.employee == null || idx.company == null || idx.project == null || idx.hours == null || idx.testType == null) {
+      toast("考勤日期、员工名字、公司名、负责项目、工时、测试类型必须指定对应列", true); return;
     }
     var payloads = [], skipped = 0;
     st.rows.forEach(function (r) {
@@ -826,7 +830,7 @@
       var hours = toNum(r[idx.hours]);
       var ot = idx.overtime != null ? toNum(r[idx.overtime]) : 0;
       var testType = idx.testType != null ? String(r[idx.testType] || "").trim().toUpperCase() : "";
-      if (testType && testType !== "SIT" && testType !== "UAT") { skipped++; return; }
+      if (testType !== "SIT" && testType !== "UAT") { skipped++; return; }
       if (!date || !employee || !company || !project || isNaN(hours) || hours < 0) { skipped++; return; }
       payloads.push({ date: date, employee: employee, company: company, project: project, testType: testType, hours: round1(hours), overtime: round1(isNaN(ot) || ot < 0 ? 0 : ot) });
     });
