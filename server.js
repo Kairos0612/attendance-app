@@ -37,6 +37,8 @@ function cleanRecord(r) {
   const employee = String(r.employee || "").trim();
   const company = String(r.company || "").trim();
   const project = String(r.project || "").trim();
+  const testType = String(r.testType || "").trim().toUpperCase();
+  if (testType && testType !== "SIT" && testType !== "UAT") return { error: "测试类型只能是 SIT 或 UAT" };
   const hoursRaw = parseFloat(r.hours);
   if (isNaN(hoursRaw) || hoursRaw < 0) return { error: "工时必须为不小于 0 的数字" };
   const otRaw = parseFloat(r.overtime);
@@ -48,6 +50,7 @@ function cleanRecord(r) {
       id: genId(), date, employee, company, project,
       hours: round1(hoursRaw),
       overtime: isNaN(otRaw) ? 0 : round1(otRaw),
+      testType: testType || "",
       createdAt: new Date().toISOString()
     }
   };
@@ -86,13 +89,13 @@ function serveStatic(req, res, pathname) {
 }
 
 const SAMPLES = [
-  ["2026-07-03", "张三", "星辰科技", "官网改版", 8, 2],
-  ["2026-07-10", "张三", "星辰科技", "官网改版", 7.5, 0],
-  ["2026-07-15", "李四", "云图网络", "数据中台", 8, 3],
-  ["2026-08-01", "张三", "星辰科技", "小程序", 8, 1],
-  ["2026-08-05", "李四", "云图网络", "数据中台", 6, 0],
-  ["2026-08-08", "王五", "星辰科技", "小程序", 8, 4],
-  ["2026-08-12", "王五", "星辰科技", "小程序", 7, 2]
+  ["2026-07-03", "张三", "星辰科技", "官网改版", 8, 2, "SIT"],
+  ["2026-07-10", "张三", "星辰科技", "官网改版", 7.5, 0, "UAT"],
+  ["2026-07-15", "李四", "云图网络", "数据中台", 8, 3, "SIT"],
+  ["2026-08-01", "张三", "星辰科技", "小程序", 8, 1, "UAT"],
+  ["2026-08-05", "李四", "云图网络", "数据中台", 6, 0, "SIT"],
+  ["2026-08-08", "王五", "星辰科技", "小程序", 8, 4, "UAT"],
+  ["2026-08-12", "王五", "星辰科技", "小程序", 7, 2, "SIT"]
 ];
 
 // ---------- 路由 ----------
@@ -151,7 +154,7 @@ async function handle(req, res) {
     if (p === "/api/seed" && method === "POST") {
       let n = 0;
       SAMPLES.forEach((s) => {
-        const c = cleanRecord({ date: s[0], employee: s[1], company: s[2], project: s[3], hours: s[4], overtime: s[5] });
+        const c = cleanRecord({ date: s[0], employee: s[1], company: s[2], project: s[3], hours: s[4], overtime: s[5], testType: s[6] });
         if (!c.error) { db.records.push(c.record); n++; }
       });
       saveDB(db);
