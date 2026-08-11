@@ -721,7 +721,7 @@
       if (v > 20000 && v < 80000) return fmtDate(new Date((v - 25569) * 86400 * 1000)); // Excel 日期序列号
       return String(v);
     }
-    var s = String(v).trim().replace(/\//g, "-");
+    var s = String(v).trim().replace(/\//g, "-").replace(/[年月]/g, "-").replace(/日/g, "");
     var m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
     if (m) return m[1] + "-" + String(m[2]).padStart(2, "0") + "-" + String(m[3]).padStart(2, "0");
     return s;
@@ -754,7 +754,7 @@
         var data = new Uint8Array(ev.target.result);
         var wb = XLSX.read(data, { type: "array", cellDates: true });
         var sheet = wb.Sheets[wb.SheetNames[0]];
-        var raw = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, defval: "" });
+        var raw = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, defval: "", raw: false });
         if (!raw.length) { toast("文件为空", true); return; }
         var bestIdx = -1, bestScore = -1, bestMap = null;
         for (var i = 0; i < Math.min(raw.length, 15); i++) {
