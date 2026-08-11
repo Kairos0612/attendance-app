@@ -198,7 +198,35 @@
     </div>
   </section>
 
-  <!-- 明细 -->
+  <!-- 统计汇总 -->
+  <section class="card">
+    <div class="toolbar" style="margin-bottom:14px;">
+      <h2 style="margin:0;">统计汇总</h2>
+      <div class="seg">
+        <button id="tabEmployee" class="active" data-tab="employee">按员工</button>
+        <button id="tabCompany" data-tab="company">按公司</button>
+      </div>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin:0 0 10px;">
+      每条记录的「月份」行展示该人/该公司当月合计；底部「合计」行为当前累计总数。
+    </p>
+    <div class="table-wrap">
+      <table id="statTable">
+        <thead>
+          <tr>
+            <th id="statNameHead">员工</th>
+            <th>月份</th>
+            <th class="num">记录数</th>
+            <th class="num">工时合计</th>
+            <th class="num">加班合计</th>
+          </tr>
+        </thead>
+        <tbody id="statBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 考勤明细 -->
   <section class="card">
     <div class="toolbar" style="margin-bottom:14px;">
       <h2 style="margin:0;">考勤明细</h2>
@@ -242,33 +270,12 @@
         <tbody id="detailBody"></tbody>
       </table>
     </div>
-  </section>
-
-  <!-- 统计 -->
-  <section class="card">
-    <div class="toolbar" style="margin-bottom:14px;">
-      <h2 style="margin:0;">统计汇总</h2>
-      <div class="seg">
-        <button id="tabEmployee" class="active" data-tab="employee">按员工</button>
-        <button id="tabCompany" data-tab="company">按公司</button>
+    <div id="detailPager" style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:10px;flex-wrap:wrap;">
+      <span id="detailPageInfo" style="color:var(--muted);font-size:12px;"></span>
+      <div style="display:flex;gap:6px;">
+        <button type="button" class="btn-ghost btn-sm" id="detailPrev">‹ 上一页</button>
+        <button type="button" class="btn-ghost btn-sm" id="detailNext">下一页 ›</button>
       </div>
-    </div>
-    <p style="color:var(--muted);font-size:12px;margin:0 0 10px;">
-      每条记录的「月份」行展示该人/该公司当月合计；底部「合计」行为当前累计总数。
-    </p>
-    <div class="table-wrap">
-      <table id="statTable">
-        <thead>
-          <tr>
-            <th id="statNameHead">员工</th>
-            <th>月份</th>
-            <th class="num">记录数</th>
-            <th class="num">工时合计</th>
-            <th class="num">加班合计</th>
-          </tr>
-        </thead>
-        <tbody id="statBody"></tbody>
-      </table>
     </div>
   </section>
 
@@ -297,6 +304,8 @@
   "use strict";
   var statMode = "employee"; // employee | company
   var records = [];          // 始终等于后端返回的最新全量数据
+  var detailPage = 1;        // 明细当前页
+  var detailPageSize = 10;   // 每页行数
 
   // ---------- API 封装 ----------
   function api(path, opts) {
@@ -460,11 +469,18 @@
   function renderDetail() {
     var list = getFiltered();
     var body = $("detailBody");
+    var pager = $("detailPager");
     if (!list.length) {
       body.innerHTML = '<tr><td colspan="8" class="empty">暂无数据，请在上方录入或点击「加载示例数据」。</td></tr>';
+      pager.style.display = "none";
       return;
     }
-    body.innerHTML = list.map(function (r) {
+    var totalPages = Math.max(1, Math.ceil(list.length / detailPageSize));
+    if (detailPage > totalPages) detailPage = totalPages;
+    if (detailPage < 1) detailPage = 1;
+    var start = (detailPage - 1) * detailPageSize;
+    var pageRows = list.slice(start, start + detailPageSize);
+    body.innerHTML = pageRows.map(function (r) {
       return '<tr>' +
         '<td>' + escapeHtml(r.date) + '</td>' +
         '<td>' + escapeHtml(r.employee) + '</td>' +
@@ -479,6 +495,10 @@
         '</td>' +
       '</tr>';
     }).join("");
+    $("detailPageInfo").textContent = "第 " + detailPage + " / " + totalPages + " 页 · 共 " + list.length + " 条";
+    $("detailPrev").disabled = detailPage <= 1;
+    $("detailNext").disabled = detailPage >= totalPages;
+    pager.style.display = "flex";
   }
 
   $("detailBody").addEventListener("click", function (e) {
@@ -509,8 +529,15 @@
   }
 
   ["filterEmployee", "filterCompany", "filterMonth", "filterKeyword"].forEach(function (id) {
-    $(id).addEventListener("input", renderDetail);
-    $(id).addEventListener("change", renderDetail);
+    $(id).addEventListener("input", function () { detailPage = 1; renderDetail(); });
+    $(id).addEventListener("change", function () { detailPage = 1; renderDetail(); });
+  });
+
+  $("detailPrev").addEventListener("click", function () {
+    if (detailPage > 1) { detailPage--; renderDetail(); }
+  });
+  $("detailNext").addEventListener("click", function () {
+    detailPage++; renderDetail();
   });
 
   // ---------- 统计 ----------
