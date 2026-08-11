@@ -752,7 +752,7 @@
     reader.onload = function (ev) {
       try {
         var data = new Uint8Array(ev.target.result);
-        var wb = XLSX.read(data, { type: "array" });
+        var wb = XLSX.read(data, { type: "array", cellDates: true });
         var sheet = wb.Sheets[wb.SheetNames[0]];
         var raw = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, defval: "" });
         if (!raw.length) { toast("文件为空", true); return; }
@@ -788,7 +788,11 @@
         '<select class="imp-map" data-key="' + f.key + '"><option value="">— 不匹配 —</option>' + headerOpts + '</select></div>';
     }).join("");
     var preview = st.rows.slice(0, 5).map(function (r) {
-      return '<tr>' + st.headers.map(function (_, i) { return '<td>' + escapeHtml(r[i] == null ? "" : r[i]) + '</td>'; }).join("") + '</tr>';
+      return '<tr>' + st.headers.map(function (_, i) {
+        var val = r[i] == null ? "" : r[i];
+        if (st.map.date != null && i === st.map.date) val = toDateStr(val);
+        return '<td>' + escapeHtml(val) + '</td>';
+      }).join("") + '</tr>';
     }).join("");
     var headRow = '<tr>' + st.headers.map(function (h) { return '<th>' + escapeHtml(h === "" ? "列" : h) + '</th>'; }).join("") + '</tr>';
     $("importPanel").innerHTML =
