@@ -156,11 +156,11 @@
           </select>
         </div>
         <div class="field">
-          <label>工时（小时）*</label>
+          <label>人天*</label>
           <input type="number" id="f_hours" min="0" step="0.1" placeholder="0.0" required />
         </div>
         <div class="field">
-          <label>加班工时（小时）</label>
+          <label>加班人天</label>
           <input type="number" id="f_overtime" min="0" step="0.1" placeholder="0.0" value="0" />
         </div>
       </div>
@@ -190,7 +190,7 @@
         <thead>
           <tr>
             <th>考勤日期</th><th>员工名字</th><th>公司名</th><th>负责项目</th>
-            <th>测试类型</th><th class="num">工时</th><th class="num">加班工时</th><th></th>
+            <th>测试类型</th><th class="num">人天</th><th class="num">加班人天</th><th></th>
           </tr>
         </thead>
         <tbody id="batchBody"></tbody>
@@ -217,7 +217,7 @@
             <th id="statNameHead">员工</th>
             <th>月份</th>
             <th class="num">记录数</th>
-            <th class="num">工时合计</th>
+            <th class="num">人天合计</th>
             <th class="num">加班合计</th>
           </tr>
         </thead>
@@ -262,8 +262,8 @@
             <th>公司名</th>
             <th>负责项目</th>
             <th>测试类型</th>
-            <th class="num">工时</th>
-            <th class="num">加班工时</th>
+            <th class="num">人天</th>
+            <th class="num">加班人天</th>
             <th>操作</th>
           </tr>
         </thead>
@@ -381,8 +381,8 @@
     if (!testType || (testType !== "SIT" && testType !== "UAT")) {
       toast("请选择测试类型（SIT 或 UAT）", true); return;
     }
-    if (isNaN(hours) || hours < 0) { toast("工时必须为不小于 0 的数字", true); return; }
-    if (isNaN(overtime) || overtime < 0) { toast("加班工时必须为不小于 0 的数字", true); return; }
+    if (isNaN(hours) || hours < 0) { toast("人天必须为不小于 0 的数字", true); return; }
+    if (isNaN(overtime) || overtime < 0) { toast("加班人天必须为不小于 0 的数字", true); return; }
 
     var payload = {
       date: date, employee: employee, company: company, project: project,
@@ -440,7 +440,7 @@
     });
     var cards = [
       { label: "记录总数", value: records.length },
-      { label: "工时合计", value: round1(totalHours), unit: "h" },
+      { label: "人天合计", value: round1(totalHours), unit: "天" },
       { label: "加班合计", value: round1(totalOt), unit: "h" },
       { label: "员工人数", value: Object.keys(empSet).length },
       { label: "公司数量", value: Object.keys(compSet).length }
@@ -608,13 +608,13 @@
     var detailRows = records.slice().sort(function (a, b) {
       return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
     }).map(function (r) {
-      return { 考勤日期: r.date, 员工名字: r.employee, 公司名: r.company, 负责项目: r.project, 测试类型: r.testType || "", 工时: r.hours, 加班工时: r.overtime };
+      return { 考勤日期: r.date, 员工名字: r.employee, 公司名: r.company, 负责项目: r.project, 测试类型: r.testType || "", 人天: r.hours, 加班人天: r.overtime };
     });
     var empRows = computeStats("employee").map(function (r) {
-      return { 员工: r.name, 月份: r.month, 记录数: r.count, 工时合计: r.hours, 加班合计: r.overtime };
+      return { 员工: r.name, 月份: r.month, 记录数: r.count, 人天合计: r.hours, 加班合计: r.overtime };
     });
     var compRows = computeStats("company").map(function (r) {
-      return { 公司: r.name, 月份: r.month, 记录数: r.count, 工时合计: r.hours, 加班合计: r.overtime };
+      return { 公司: r.name, 月份: r.month, 记录数: r.count, 人天合计: r.hours, 加班合计: r.overtime };
     });
 
     var wb = XLSX.utils.book_new();
@@ -733,8 +733,8 @@
     { key: "employee", label: "员工名字", aliases: ["员工名字","员工","姓名","名字","人员","name","employee","emp"] },
     { key: "company", label: "公司名", aliases: ["公司名","公司","单位","company","firm","corp"] },
     { key: "project", label: "负责项目", aliases: ["负责项目","项目","project","task"] },
-    { key: "hours", label: "工时", aliases: ["工时","小时","工作时长","工作小时","hours","workhours"] },
-    { key: "overtime", label: "加班工时", aliases: ["加班工时","加班","overtime","ot"] },
+    { key: "hours", label: "人天", aliases: ["人天","工时","小时","工作时长","工作小时","hours","workhours"] },
+    { key: "overtime", label: "加班人天", aliases: ["加班人天","加班工时","加班","overtime","ot"] },
     { key: "testType", label: "测试类型", aliases: ["测试类型","测试","类型","testtype","test type","type","phase"] }
   ];
   function fmtDate(d) {
@@ -761,7 +761,7 @@
   var importState = null;
   $("tplBtn").addEventListener("click", function () {
     if (typeof XLSX === "undefined") { toast("模板组件未加载（需联网）", true); return; }
-    var aoa = [["考勤日期","员工名字","公司名","负责项目","测试类型","工时","加班工时"], ["2026-08-04","张三","星辰科技","官网改版","SIT",8,2]];
+    var aoa = [["考勤日期","员工名字","公司名","负责项目","测试类型","人天","加班人天"], ["2026-08-04","张三","星辰科技","官网改版","SIT",8,2]];
     var ws = XLSX.utils.aoa_to_sheet(aoa);
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "考勤模板");
@@ -850,7 +850,7 @@
       idx[f.key] = v === "" ? null : parseInt(v, 10);
     });
     if (idx.date == null || idx.employee == null || idx.company == null || idx.project == null || idx.hours == null || idx.testType == null) {
-      toast("考勤日期、员工名字、公司名、负责项目、工时、测试类型必须指定对应列", true); return;
+      toast("考勤日期、员工名字、公司名、负责项目、人天、测试类型必须指定对应列", true); return;
     }
     var payloads = [], skipped = 0;
     st.rows.forEach(function (r) {

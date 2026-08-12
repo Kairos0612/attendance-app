@@ -40,9 +40,9 @@ function cleanRecord(r) {
   const testType = String(r.testType || "").trim().toUpperCase();
   if (testType !== "SIT" && testType !== "UAT") return { error: "测试类型必填，且只能是 SIT 或 UAT" };
   const hoursRaw = parseFloat(r.hours);
-  if (isNaN(hoursRaw) || hoursRaw < 0) return { error: "工时必须为不小于 0 的数字" };
+  if (isNaN(hoursRaw) || hoursRaw < 0) return { error: "人天必须为不小于 0 的数字" };
   const otRaw = parseFloat(r.overtime);
-  if (!isNaN(otRaw) && otRaw < 0) return { error: "加班工时必须为不小于 0 的数字" };
+  if (!isNaN(otRaw) && otRaw < 0) return { error: "加班人天必须为不小于 0 的数字" };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: "考勤日期格式应为 YYYY-MM-DD" };
   if (!employee || !company || !project) return { error: "员工名字 / 公司名 / 负责项目 不能为空" };
   return {
