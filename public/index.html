@@ -157,11 +157,11 @@
         </div>
         <div class="field">
           <label>人天*</label>
-          <input type="number" id="f_hours" min="0" step="0.1" placeholder="0.0" required />
+          <input type="number" id="f_hours" min="0" step="0.01" placeholder="0.00" required />
         </div>
         <div class="field">
           <label>加班人天</label>
-          <input type="number" id="f_overtime" min="0" step="0.1" placeholder="0.0" value="0" />
+          <input type="number" id="f_overtime" min="0" step="0.01" placeholder="0.00" value="0" />
         </div>
       </div>
       <div class="form-actions">
@@ -331,7 +331,7 @@
 
   // ---------- 工具 ----------
   function $(id) { return document.getElementById(id); }
-  function round1(n) { return Math.round((Number(n) || 0) * 10) / 10; }
+  function round1(n) { return Math.round((Number(n) || 0) * 100) / 100; }
   function monthOf(dateStr) { return (dateStr || "").slice(0, 7); }
   function escapeHtml(s) {
     return String(s == null ? "" : s)
@@ -441,7 +441,7 @@
     var cards = [
       { label: "记录总数", value: records.length },
       { label: "人天合计", value: round1(totalHours), unit: "天" },
-      { label: "加班合计", value: round1(totalOt), unit: "h" },
+      { label: "加班人天合计", value: round1(totalOt), unit: "天" },
       { label: "员工人数", value: Object.keys(empSet).length },
       { label: "公司数量", value: Object.keys(compSet).length }
     ];
@@ -654,8 +654,8 @@
       '<td><input type="text" class="b-input b-company" placeholder="公司"></td>' +
       '<td><input type="text" class="b-input b-project" placeholder="项目"></td>' +
       '<td><select class="b-input b-testType"><option value="">请选择 *</option><option value="SIT">SIT</option><option value="UAT">UAT</option></select></td>' +
-      '<td class="num"><input type="number" class="b-input b-hours" min="0" step="0.1" placeholder="0"></td>' +
-      '<td class="num"><input type="number" class="b-input b-ot" min="0" step="0.1" placeholder="0"></td>' +
+      '<td class="num"><input type="number" class="b-input b-hours" min="0" step="0.01" placeholder="0"></td>' +
+      '<td class="num"><input type="number" class="b-input b-ot" min="0" step="0.01" placeholder="0"></td>' +
       '<td><button type="button" class="btn-danger btn-sm b-del">删</button></td>' +
     '</tr>';
   }
