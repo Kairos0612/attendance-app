@@ -29,7 +29,7 @@ function saveDB(obj) {
 let db = loadDB();
 
 function genId() { return Date.now().toString(36) + crypto.randomBytes(4).toString("hex"); }
-function round1(n) { return Math.round((Number(n) || 0) * 10) / 10; }
+function round1(n) { return Math.round((Number(n) || 0) * 100) / 100; }
 
 // ---------- 校验与清洗 ----------
 function cleanRecord(r) {
