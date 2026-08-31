@@ -113,6 +113,31 @@
   .imp-label { font-size: 12px; color: var(--muted); font-weight: 600; }
   .imp-map { border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 13px; background: #fff; color: var(--text); }
   @media (max-width: 860px) { .imp-maps { grid-template-columns: repeat(2, 1fr); } }
+  .autocomplete-wrap { position: relative; }
+  .suggest-list {
+    position: absolute; top: calc(100% + 2px); left: 0; right: 0; max-height: 180px; overflow-y: auto;
+    background: #fff; border: 1px solid var(--border); border-radius: 6px; z-index: 50;
+    box-shadow: 0 6px 16px rgba(0,0,0,.10); display: none; text-align: left;
+  }
+  .suggest-item { padding: 7px 10px; cursor: pointer; font-size: 13px; color: var(--text); }
+  .suggest-item:hover { background: #f0f4ff; }
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none;
+    align-items: center; justify-content: center; z-index: 100;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal {
+    background: var(--card); border-radius: 12px; padding: 22px; width: 90%; max-width: 420px;
+    box-shadow: 0 16px 40px rgba(0,0,0,.18);
+  }
+  .modal h3 { margin: 0 0 14px; font-size: 17px; }
+  .modal label { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .modal select, .modal input {
+    width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px;
+    font-size: 14px; margin: 6px 0 14px; background: #fff; color: var(--text);
+  }
+  .modal p { margin: -6px 0 16px; line-height: 1.5; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -197,6 +222,22 @@
       </table>
     </div>
   </section>
+
+  <!-- 批量填充选择弹窗 -->
+  <div class="modal-backdrop" id="batchFillModal">
+    <div class="modal">
+      <h3>填充上周工作日</h3>
+      <label for="batchFillEmployee">选择人员</label>
+      <select id="batchFillEmployee"></select>
+      <p style="color:var(--muted);font-size:12px;margin:0 0 16px;">
+        选择现有人员会自动复制其上周记录到批量表；选择「— 新增 —」则只填充上周日期，其他内容为空。
+      </p>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" id="batchFillCancel">取消</button>
+        <button type="button" class="btn-primary" id="batchFillConfirm">确定填充</button>
+      </div>
+    </div>
+  </div>
 
   <!-- 统计汇总 -->
   <section class="card">
@@ -647,15 +688,16 @@
   });
 
   // ---------- 批量录入 ----------
-  function batchRowHtml() {
+  function batchRowHtml(data) {
+    data = data || {};
     return '<tr>' +
-      '<td><input type="date" class="b-input b-date" value="' + todayStr() + '"></td>' +
-      '<td><input type="text" class="b-input b-employee" placeholder="员工"></td>' +
-      '<td><input type="text" class="b-input b-company" placeholder="公司"></td>' +
-      '<td><input type="text" class="b-input b-project" placeholder="项目"></td>' +
-      '<td><select class="b-input b-testType"><option value="">请选择 *</option><option value="SIT">SIT</option><option value="UAT">UAT</option></select></td>' +
-      '<td class="num"><input type="number" class="b-input b-hours" min="0" step="0.01" placeholder="0"></td>' +
-      '<td class="num"><input type="number" class="b-input b-ot" min="0" step="0.01" placeholder="0"></td>' +
+      '<td><input type="date" class="b-input b-date" value="' + (data.date || todayStr()) + '"></td>' +
+      '<td><div class="autocomplete-wrap"><input type="text" class="b-input b-employee" placeholder="员工" value="' + escapeHtml(data.employee || "") + '" autocomplete="off"><div class="suggest-list"></div></div></td>' +
+      '<td><div class="autocomplete-wrap"><input type="text" class="b-input b-company" placeholder="公司" value="' + escapeHtml(data.company || "") + '" autocomplete="off"><div class="suggest-list"></div></div></td>' +
+      '<td><div class="autocomplete-wrap"><input type="text" class="b-input b-project" placeholder="项目" value="' + escapeHtml(data.project || "") + '" autocomplete="off"><div class="suggest-list"></div></div></td>' +
+      '<td><select class="b-input b-testType"><option value="">请选择 *</option><option value="SIT"' + (data.testType === "SIT" ? " selected" : "") + '>SIT</option><option value="UAT"' + (data.testType === "UAT" ? " selected" : "") + '>UAT</option></select></td>' +
+      '<td class="num"><input type="number" class="b-input b-hours" min="0" step="0.01" placeholder="0" value="' + (data.hours == null ? "" : escapeHtml(data.hours)) + '"></td>' +
+      '<td class="num"><input type="number" class="b-input b-ot" min="0" step="0.01" placeholder="0" value="' + (data.overtime == null ? "" : escapeHtml(data.overtime)) + '"></td>' +
       '<td><button type="button" class="btn-danger btn-sm b-del">删</button></td>' +
     '</tr>';
   }
@@ -684,14 +726,129 @@
     for (var i = 0; i < 5; i++) addBatchRow();
   });
   $("batchFillWeek").addEventListener("click", function () {
-    var mon = lastWeekMonday();
-    var rows = $("batchBody").querySelectorAll("tr");
-    if (!rows.length) { toast("请先添加行", true); return; }
-    rows.forEach(function (tr, i) {
-      tr.querySelector(".b-date").value = fmtDate(addWorkdays(mon, i));
-    });
-    toast("已填充上周工作日");
+    openBatchFillModal();
   });
+  $("batchFillCancel").addEventListener("click", closeBatchFillModal);
+  $("batchFillConfirm").addEventListener("click", function () {
+    var employee = $("batchFillEmployee").value;
+    closeBatchFillModal();
+    fillLastWeekBatch(employee);
+  });
+  $("batchFillModal").addEventListener("click", function (e) {
+    if (e.target === $("batchFillModal")) closeBatchFillModal();
+  });
+  function openBatchFillModal() {
+    var sel = $("batchFillEmployee");
+    sel.innerHTML = '<option value="">— 新增 —</option>' +
+      uniqueEmployees().map(function (e) { return '<option value="' + escapeHtml(e) + '">' + escapeHtml(e) + '</option>'; }).join("");
+    $("batchFillModal").classList.add("show");
+  }
+  function closeBatchFillModal() { $("batchFillModal").classList.remove("show"); }
+  function fillLastWeekBatch(employee) {
+    var mon = lastWeekMonday();
+    $("batchBody").innerHTML = "";
+    var lastWeekMap = {};
+    if (employee) {
+      records.forEach(function (r) {
+        if (r.employee !== employee) return;
+        var d = new Date(r.date + "T00:00:00");
+        var diff = Math.round((d - mon) / (1000 * 60 * 60 * 24));
+        if (diff >= 0 && diff <= 4) lastWeekMap[diff] = r;
+      });
+    }
+    for (var i = 0; i < 5; i++) {
+      var date = fmtDate(addWorkdays(mon, i));
+      var data = { date: date };
+      if (employee) {
+        data.employee = employee;
+        var r = lastWeekMap[i];
+        if (r) {
+          data.company = r.company; data.project = r.project; data.testType = r.testType;
+          data.hours = r.hours; data.overtime = r.overtime;
+        }
+      }
+      $("batchBody").insertAdjacentHTML("beforeend", batchRowHtml(data));
+    }
+    toast(employee ? "已填充「" + employee + "」上周记录" : "已填充上周工作日（新增）");
+  }
+
+  // ---------- 批量录入字段联想 ----------
+  function uniqueEmployees() {
+    var set = {};
+    records.forEach(function (r) { set[r.employee] = 1; });
+    return Object.keys(set).sort();
+  }
+  function uniqueCompanies(employee) {
+    var set = {};
+    records.forEach(function (r) { if (!employee || r.employee === employee) set[r.company] = 1; });
+    return Object.keys(set).sort();
+  }
+  function uniqueProjects(employee) {
+    var set = {};
+    records.forEach(function (r) { if (!employee || r.employee === employee) set[r.project] = 1; });
+    return Object.keys(set).sort();
+  }
+  function mostRecentRecord(employee) {
+    var list = records.filter(function (r) { return r.employee === employee; });
+    if (!list.length) return null;
+    list.sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
+    return list[0];
+  }
+  function closeAllSuggest() {
+    document.querySelectorAll(".suggest-list").forEach(function (el) { el.style.display = "none"; el.innerHTML = ""; });
+  }
+  function renderSuggest(listEl, items, onPick) {
+    if (!items.length) { listEl.style.display = "none"; return; }
+    listEl.innerHTML = items.map(function (v) {
+      return '<div class="suggest-item" data-value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</div>';
+    }).join("");
+    listEl.style.display = "block";
+    Array.prototype.forEach.call(listEl.querySelectorAll(".suggest-item"), function (item) {
+      item.addEventListener("mousedown", function (e) {
+        e.preventDefault();
+        onPick(item.getAttribute("data-value"));
+      });
+    });
+  }
+  function batchRowFrom(input) { return input.closest("tr"); }
+  function showEmployeeSuggest(input) {
+    var listEl = input.parentNode.querySelector(".suggest-list");
+    renderSuggest(listEl, uniqueEmployees(), function (val) {
+      input.value = val;
+      var tr = batchRowFrom(input);
+      var r = mostRecentRecord(val);
+      if (r) {
+        tr.querySelector(".b-company").value = r.company || "";
+        tr.querySelector(".b-project").value = r.project || "";
+      }
+      closeAllSuggest();
+    });
+  }
+  function showCompanySuggest(input) {
+    var tr = batchRowFrom(input);
+    var emp = tr.querySelector(".b-employee").value.trim();
+    var listEl = input.parentNode.querySelector(".suggest-list");
+    renderSuggest(listEl, uniqueCompanies(emp), function (val) { input.value = val; closeAllSuggest(); });
+  }
+  function showProjectSuggest(input) {
+    var tr = batchRowFrom(input);
+    var emp = tr.querySelector(".b-employee").value.trim();
+    var listEl = input.parentNode.querySelector(".suggest-list");
+    renderSuggest(listEl, uniqueProjects(emp), function (val) { input.value = val; closeAllSuggest(); });
+  }
+
+  $("batchBody").addEventListener("focusin", function (e) {
+    var input = e.target;
+    if (!input.classList) return;
+    if (input.classList.contains("b-employee")) showEmployeeSuggest(input);
+    else if (input.classList.contains("b-company")) showCompanySuggest(input);
+    else if (input.classList.contains("b-project")) showProjectSuggest(input);
+  });
+  $("batchBody").addEventListener("focusout", function (e) {
+    // 让 click 事件先完成再关闭；mousedown 会阻止默认行为避免失去焦点
+    setTimeout(closeAllSuggest, 150);
+  });
+
   $("batchSubmit").addEventListener("click", async function () {
     var rows = $("batchBody").querySelectorAll("tr");
     var payloads = [], skipped = 0;
