@@ -107,6 +107,7 @@
   }
   .batch-grid input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 2px rgba(59,110,245,.12); }
   .batch-grid th, .batch-grid td { padding: 6px 8px; }
+  .batch-wrap { overflow: visible; }
   .imp-box { border: 1px solid var(--border); border-radius: 10px; padding: 14px; background: #fbfcfe; margin-top: 6px; }
   .imp-maps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .imp-row { display: flex; flex-direction: column; gap: 4px; }
@@ -210,7 +211,7 @@
     <p style="color:var(--muted);font-size:12px;margin:0 0 10px;">
       每行一条考勤，可一次性提交多条；整行空白或不完整的行会被忽略。点「填充上周工作日」可把每行日期依次设为上周一至周五。
     </p>
-    <div class="table-wrap">
+    <div class="table-wrap batch-wrap">
       <table class="batch-grid">
         <thead>
           <tr>
@@ -748,6 +749,7 @@
     var mon = lastWeekMonday();
     $("batchBody").innerHTML = "";
     var lastWeekMap = {};
+    var recent = employee ? mostRecentRecord(employee) : null;
     if (employee) {
       records.forEach(function (r) {
         if (r.employee !== employee) return;
@@ -761,7 +763,7 @@
       var data = { date: date };
       if (employee) {
         data.employee = employee;
-        var r = lastWeekMap[i];
+        var r = lastWeekMap[i] || recent;
         if (r) {
           data.company = r.company; data.project = r.project; data.testType = r.testType;
           data.hours = r.hours; data.overtime = r.overtime;
@@ -811,9 +813,14 @@
     });
   }
   function batchRowFrom(input) { return input.closest("tr"); }
+  function openSuggest(input, items, onPick) {
+    closeAllSuggest();
+    var val = (input.value || "").trim().toLowerCase();
+    var filtered = val ? items.filter(function (x) { return x.toLowerCase().indexOf(val) !== -1; }) : items;
+    renderSuggest(input.parentNode.querySelector(".suggest-list"), filtered, onPick);
+  }
   function showEmployeeSuggest(input) {
-    var listEl = input.parentNode.querySelector(".suggest-list");
-    renderSuggest(listEl, uniqueEmployees(), function (val) {
+    openSuggest(input, uniqueEmployees(), function (val) {
       input.value = val;
       var tr = batchRowFrom(input);
       var r = mostRecentRecord(val);
@@ -825,28 +832,26 @@
     });
   }
   function showCompanySuggest(input) {
-    var tr = batchRowFrom(input);
-    var emp = tr.querySelector(".b-employee").value.trim();
-    var listEl = input.parentNode.querySelector(".suggest-list");
-    renderSuggest(listEl, uniqueCompanies(emp), function (val) { input.value = val; closeAllSuggest(); });
+    var emp = batchRowFrom(input).querySelector(".b-employee").value.trim();
+    openSuggest(input, uniqueCompanies(emp), function (val) { input.value = val; closeAllSuggest(); });
   }
   function showProjectSuggest(input) {
-    var tr = batchRowFrom(input);
-    var emp = tr.querySelector(".b-employee").value.trim();
-    var listEl = input.parentNode.querySelector(".suggest-list");
-    renderSuggest(listEl, uniqueProjects(emp), function (val) { input.value = val; closeAllSuggest(); });
+    var emp = batchRowFrom(input).querySelector(".b-employee").value.trim();
+    openSuggest(input, uniqueProjects(emp), function (val) { input.value = val; closeAllSuggest(); });
   }
-
-  $("batchBody").addEventListener("focusin", function (e) {
-    var input = e.target;
-    if (!input.classList) return;
+  function maybeSuggest(input) {
+    if (!input || !input.classList) return;
     if (input.classList.contains("b-employee")) showEmployeeSuggest(input);
     else if (input.classList.contains("b-company")) showCompanySuggest(input);
     else if (input.classList.contains("b-project")) showProjectSuggest(input);
-  });
-  $("batchBody").addEventListener("focusout", function (e) {
-    // 让 click 事件先完成再关闭；mousedown 会阻止默认行为避免失去焦点
-    setTimeout(closeAllSuggest, 150);
+  }
+
+  // 聚焦 / 点击 / 输入 都展开联想，并随输入实时过滤；只有点击框外才收起
+  $("batchBody").addEventListener("focusin", function (e) { maybeSuggest(e.target); });
+  $("batchBody").addEventListener("click", function (e) { maybeSuggest(e.target); });
+  $("batchBody").addEventListener("input", function (e) { maybeSuggest(e.target); });
+  document.addEventListener("mousedown", function (e) {
+    if (!e.target.closest || !e.target.closest(".autocomplete-wrap")) closeAllSuggest();
   });
 
   $("batchSubmit").addEventListener("click", async function () {
