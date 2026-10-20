@@ -114,8 +114,23 @@
   .imp-label { font-size: 12px; color: var(--muted); font-weight: 600; }
   .imp-map { border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 13px; background: #fff; color: var(--text); }
   @media (max-width: 860px) { .imp-maps { grid-template-columns: repeat(2, 1fr); } }
-  .autocomplete-wrap { position: relative; }
-  .suggest-list {
+  /* ---------- 项目人天统计 ---------- */
+  .proj-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 14px; }
+  .proj-summary .stat { box-shadow: none; background: #fbfcfe; }
+  .bar-cell { min-width: 170px; }
+  .bar { height: 8px; background: #eef1f7; border-radius: 99px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #3b6ef5, #5b8def); }
+  tr.proj-row td { background: #fbfcfe; }
+  tr.proj-detail td { background: #fcfdff; color: var(--muted); }
+  tr.proj-detail td:first-child { padding-left: 32px; }
+  .expand-btn {
+    background: none; border: none; color: var(--primary); cursor: pointer;
+    font-size: 12px; font-weight: 600; padding: 2px 6px;
+  }
+  .expand-btn:hover { text-decoration: underline; }
+  @media (max-width: 860px) { .proj-summary { grid-template-columns: repeat(2, 1fr); } }
+
+  .autocomplete-wrap { position: relative; }  .suggest-list {
     position: absolute; top: calc(100% + 2px); left: 0; right: 0; max-height: 180px; overflow-y: auto;
     background: #fff; border: 1px solid var(--border); border-radius: 6px; z-index: 50;
     box-shadow: 0 6px 16px rgba(0,0,0,.10); display: none; text-align: left;
@@ -250,7 +265,7 @@
       </div>
     </div>
     <p style="color:var(--muted);font-size:12px;margin:0 0 10px;">
-      每条记录的「月份」行展示该人/该公司当月合计；底部「合计」行为当前累计总数。
+      每条记录的「月份」行展示该人/该公司当月合计；底部「合计」行为当前累计总数。点合计行的【删除该员工/该公司全部记录】可一次性清空其所有月份数据。
     </p>
     <div class="table-wrap">
       <table id="statTable">
@@ -261,9 +276,69 @@
             <th class="num">记录数</th>
             <th class="num">人天合计</th>
             <th class="num">加班合计</th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody id="statBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 项目人天统计 -->
+  <section class="card">
+    <div class="toolbar" style="margin-bottom:14px;">
+      <h2 style="margin:0;">项目人天统计</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <div class="seg">
+          <button id="projSegMonth" class="active">按月展开</button>
+          <button id="projSegTotal">仅合计</button>
+        </div>
+        <button type="button" class="btn-ghost btn-sm" id="projExportBtn">导出项目统计</button>
+      </div>
+    </div>
+
+    <div class="proj-summary" id="projSummaryCards"></div>
+
+    <div class="filters">
+      <div class="field">
+        <label>月份</label>
+        <select id="projFilterMonth"><option value="">全部月份</option></select>
+      </div>
+      <div class="field">
+        <label>公司</label>
+        <select id="projFilterCompany"><option value="">全部公司</option></select>
+      </div>
+      <div class="field">
+        <label>测试类型</label>
+        <select id="projFilterTestType">
+          <option value="">全部</option><option value="SIT">SIT</option><option value="UAT">UAT</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>关键字</label>
+        <input type="text" id="projFilterKeyword" placeholder="项目名称搜索" />
+      </div>
+    </div>
+
+    <p style="color:var(--muted);font-size:12px;margin:0 0 10px;">
+      「占比」为该项目人天占当前筛选条件下总人天的比例；点【展开】可查看该项目每个月的明细。
+    </p>
+
+    <div class="table-wrap">
+      <table id="projStatTable">
+        <thead>
+          <tr>
+            <th style="width:64px;">展开</th>
+            <th>负责项目</th>
+            <th class="num">记录数</th>
+            <th class="num">参与人数</th>
+            <th class="num">人天合计</th>
+            <th class="num">加班人天合计</th>
+            <th class="num">占比</th>
+            <th style="width:200px;">人天分布</th>
+          </tr>
+        </thead>
+        <tbody id="projStatBody"></tbody>
       </table>
     </div>
   </section>
@@ -609,10 +684,11 @@
 
   function renderStats() {
     var rows = computeStats(statMode);
-    $("statNameHead").textContent = statMode === "employee" ? "员工" : "公司";
+    var isEmp = statMode === "employee";
+    $("statNameHead").textContent = isEmp ? "员工" : "公司";
     var body = $("statBody");
     if (!rows.length) {
-      body.innerHTML = '<tr><td colspan="5" class="empty">暂无统计数据。</td></tr>';
+      body.innerHTML = '<tr><td colspan="6" class="empty">暂无统计数据。</td></tr>';
       return;
     }
     body.innerHTML = rows.map(function (r) {
@@ -622,9 +698,30 @@
         '<td class="num">' + r.count + '</td>' +
         '<td class="num">' + r.hours + '</td>' +
         '<td class="num">' + r.overtime + '</td>' +
+        '<td>' + (r.total
+          ? '<button class="btn-danger btn-sm" data-delall="' + escapeHtml(r.name) + '" data-field="' + (isEmp ? "employee" : "company") + '">删除全部</button>'
+          : '<span style="color:var(--muted);font-size:12px;">—</span>') +
+        '</td>' +
       '</tr>';
     }).join("");
   }
+
+  async function deleteAllByName(name, field) {
+    var label = field === "employee" ? "员工" : "公司";
+    var cnt = records.filter(function (r) { return String(r[field] || "").trim() === name; }).length;
+    if (!confirm("确定删除「" + name + "」的全部 " + cnt + " 条考勤记录吗？\n\n此操作不可恢复！")) return;
+    try {
+      var res = await api("/api/records/by-name?field=" + encodeURIComponent(field) + "&name=" + encodeURIComponent(name), { method: "DELETE" });
+      toast("已删除「" + name + "」" + res.deleted + " 条记录");
+    } catch (err) { toast(err.message, true); return; }
+    reload();
+  }
+
+  $("statBody").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-delall]");
+    if (!btn) return;
+    deleteAllByName(btn.getAttribute("data-delall"), btn.getAttribute("data-field"));
+  });
 
   $("tabEmployee").addEventListener("click", function () {
     statMode = "employee";
@@ -637,6 +734,193 @@
     $("tabCompany").classList.add("active");
     $("tabEmployee").classList.remove("active");
     renderStats();
+  });
+
+  // ---------- 项目人天统计 ----------
+  var projExpandMode = "month"; // month = 展示月度明细行 | total = 仅合计
+  var projExpanded = {};        // 项目名 -> 是否展开
+
+  function projFiltered() {
+    var fm = $("projFilterMonth").value;
+    var fc = $("projFilterCompany").value;
+    var ft = $("projFilterTestType").value;
+    var kw = $("projFilterKeyword").value.trim().toLowerCase();
+    return records.filter(function (r) {
+      if (fm && monthOf(r.date) !== fm) return false;
+      if (fc && r.company !== fc) return false;
+      if (ft && r.testType !== ft) return false;
+      if (kw && String(r.project).toLowerCase().indexOf(kw) === -1) return false;
+      return true;
+    });
+  }
+
+  // 返回按项目聚合的数据：{ list: [{project, count, people, hours, overtime, months:[{month,count,people,hours,overtime}]}], totals }
+  function computeProjStats(list) {
+    var groups = {};
+    list.forEach(function (r) {
+      var p = r.project;
+      if (!groups[p]) groups[p] = { project: p, count: 0, people: {}, hours: 0, overtime: 0, months: {} };
+      var g = groups[p];
+      g.count++; g.hours += r.hours; g.overtime += r.overtime; g.people[r.employee] = 1;
+      var m = monthOf(r.date);
+      if (!g.months[m]) g.months[m] = { month: m, count: 0, people: {}, hours: 0, overtime: 0 };
+      var mg = g.months[m];
+      mg.count++; mg.hours += r.hours; mg.overtime += r.overtime; mg.people[r.employee] = 1;
+    });
+    var arr = Object.keys(groups).map(function (k) {
+      var g = groups[k];
+      g.hours = round1(g.hours); g.overtime = round1(g.overtime);
+      g.peopleCount = Object.keys(g.people).length;
+      g.monthList = Object.keys(g.months).sort().map(function (m) {
+        var mg = g.months[m];
+        mg.hours = round1(mg.hours); mg.overtime = round1(mg.overtime);
+        mg.peopleCount = Object.keys(mg.people).length;
+        return mg;
+      });
+      return g;
+    }).sort(function (a, b) { return b.hours - a.hours; });
+
+    var totals = { count: 0, hours: 0, overtime: 0, people: {}, projects: arr.length };
+    list.forEach(function (r) { totals.people[r.employee] = 1; });
+    arr.forEach(function (g) { totals.count += g.count; totals.hours += g.hours; totals.overtime += g.overtime; });
+    totals.hours = round1(totals.hours); totals.overtime = round1(totals.overtime);
+    totals.peopleCount = Object.keys(totals.people).length;
+    return { list: arr, totals: totals };
+  }
+
+  function refreshProjFilterOptions() {
+    var comps = [], months = [];
+    records.forEach(function (r) {
+      if (comps.indexOf(r.company) === -1) comps.push(r.company);
+      var m = monthOf(r.date);
+      if (m && months.indexOf(m) === -1) months.push(m);
+    });
+    comps.sort(); months.sort();
+    var selM = $("projFilterMonth");
+    var curM = selM.value;
+    selM.innerHTML = '<option value="">全部月份</option>' +
+      months.map(function (v) { return '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</option>'; }).join("");
+    if (months.indexOf(curM) !== -1) selM.value = curM;
+
+    fillSelect($("projFilterCompany"), comps);
+  }
+
+  function renderProjStats() {
+    var data = computeProjStats(projFiltered());
+    var t = data.totals;
+
+    // 汇总卡片
+    var cards = [
+      { label: "项目总数", value: t.projects, unit: "个" },
+      { label: "人天合计", value: t.hours, unit: "天" },
+      { label: "加班人天合计", value: t.overtime, unit: "天" },
+      { label: "参与人数", value: t.peopleCount, unit: "人" }
+    ];
+    $("projSummaryCards").innerHTML = cards.map(function (c) {
+      return '<div class="stat"><div class="label">' + c.label + '</div>' +
+        '<div class="value">' + c.value + (c.unit ? ' <small>' + c.unit + '</small>' : '') + '</div></div>';
+    }).join("");
+
+    var body = $("projStatBody");
+    if (!data.list.length) {
+      body.innerHTML = '<tr><td colspan="8" class="empty">暂无项目统计数据。</td></tr>';
+      return;
+    }
+
+    var maxHours = data.list[0].hours || 1;
+    var showMonths = projExpandMode === "month";
+
+    var html = data.list.map(function (g) {
+      var pct = t.hours > 0 ? (g.hours / t.hours * 100) : 0;
+      var opened = !!projExpanded[g.project];
+      var rows = '<tr class="proj-row">' +
+        '<td>' + (g.monthList.length > 1
+          ? '<button class="expand-btn" data-proj-toggle="' + escapeHtml(g.project) + '">' + (opened ? '收起 ▴' : '展开 ▾') + '</button>'
+          : '<span style="color:var(--muted);font-size:12px;">—</span>') + '</td>' +
+        '<td><strong>' + escapeHtml(g.project) + '</strong></td>' +
+        '<td class="num">' + g.count + '</td>' +
+        '<td class="num">' + g.peopleCount + '</td>' +
+        '<td class="num">' + g.hours + '</td>' +
+        '<td class="num">' + g.overtime + '</td>' +
+        '<td class="num">' + pct.toFixed(1) + '%</td>' +
+        '<td class="bar-cell"><div class="bar"><i style="width:' + (g.hours / maxHours * 100).toFixed(1) + '%"></i></div></td>' +
+      '</tr>';
+
+      if (showMonths && opened) {
+        rows += g.monthList.map(function (m) {
+          return '<tr class="proj-detail">' +
+            '<td></td><td>' + escapeHtml(m.month) + '</td>' +
+            '<td class="num">' + m.count + '</td>' +
+            '<td class="num">' + m.peopleCount + '</td>' +
+            '<td class="num">' + m.hours + '</td>' +
+            '<td class="num">' + m.overtime + '</td>' +
+            '<td class="num"></td><td class="bar-cell"></td>' +
+          '</tr>';
+        }).join("");
+      }
+      return rows;
+    }).join("");
+
+    html += '<tr class="total-row">' +
+      '<td></td><td>合计</td>' +
+      '<td class="num">' + t.count + '</td>' +
+      '<td class="num">' + t.peopleCount + '</td>' +
+      '<td class="num">' + t.hours + '</td>' +
+      '<td class="num">' + t.overtime + '</td>' +
+      '<td class="num">' + (t.hours > 0 ? "100%" : "—") + '</td>' +
+      '<td class="bar-cell"></td>' +
+    '</tr>';
+
+    body.innerHTML = html;
+  }
+
+  $("projStatBody").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-proj-toggle]");
+    if (!btn) return;
+    var name = btn.getAttribute("data-proj-toggle");
+    projExpanded[name] = !projExpanded[name];
+    renderProjStats();
+  });
+
+  ["projFilterMonth", "projFilterCompany", "projFilterTestType"].forEach(function (id) {
+    $(id).addEventListener("change", renderProjStats);
+  });
+  $("projFilterKeyword").addEventListener("input", renderProjStats);
+
+  $("projSegMonth").addEventListener("click", function () {
+    projExpandMode = "month";
+    this.classList.add("active"); $("projSegTotal").classList.remove("active");
+    renderProjStats();
+  });
+  $("projSegTotal").addEventListener("click", function () {
+    projExpandMode = "total";
+    this.classList.add("active"); $("projSegMonth").classList.remove("active");
+    renderProjStats();
+  });
+
+  $("projExportBtn").addEventListener("click", function () {
+    if (typeof XLSX === "undefined") {
+      toast("导出组件未加载（需联网加载 SheetJS），请检查网络后重试", true); return;
+    }
+    var data = computeProjStats(projFiltered());
+    if (!data.list.length) { toast("没有可导出的项目统计数据", true); return; }
+    var t = data.totals;
+    var rows = [];
+    data.list.forEach(function (g) {
+      rows.push({
+        负责项目: g.project, 记录数: g.count, 参与人数: g.peopleCount,
+        人天合计: g.hours, 加班人天合计: g.overtime,
+        占比: t.hours > 0 ? (g.hours / t.hours * 100).toFixed(1) + "%" : "0%"
+      });
+    });
+    rows.push({
+      负责项目: "合计", 记录数: t.count, 参与人数: t.peopleCount,
+      人天合计: t.hours, 加班人天合计: t.overtime, 占比: "100%"
+    });
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "项目人天统计");
+    XLSX.writeFile(wb, "项目人天统计_" + todayStr() + ".xlsx");
+    toast("项目统计导出成功");
   });
 
   // ---------- 导出 ----------
@@ -658,11 +942,25 @@
     var compRows = computeStats("company").map(function (r) {
       return { 公司: r.name, 月份: r.month, 记录数: r.count, 人天合计: r.hours, 加班合计: r.overtime };
     });
+    var projData = computeProjStats(records);
+    var projTotals = projData.totals;
+    var projRows = projData.list.map(function (g) {
+      return {
+        负责项目: g.project, 记录数: g.count, 参与人数: g.peopleCount,
+        人天合计: g.hours, 加班人天合计: g.overtime,
+        占比: projTotals.hours > 0 ? (g.hours / projTotals.hours * 100).toFixed(1) + "%" : "0%"
+      };
+    });
+    projRows.push({
+      负责项目: "合计", 记录数: projTotals.count, 参与人数: projTotals.peopleCount,
+      人天合计: projTotals.hours, 加班人天合计: projTotals.overtime, 占比: "100%"
+    });
 
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detailRows), "考勤明细");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(empRows), "按员工统计");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(compRows), "按公司统计");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(projRows), "项目人天统计");
     XLSX.writeFile(wb, "考勤记录_" + todayStr() + ".xlsx");
     toast("导出成功");
   }
@@ -1039,9 +1337,11 @@
   // ---------- 渲染总入口 ----------
   function renderAll() {
     refreshFilterOptions();
+    refreshProjFilterOptions();
     renderSummary();
     renderDetail();
     renderStats();
+    renderProjStats();
   }
 
   // ---------- 初始化 ----------

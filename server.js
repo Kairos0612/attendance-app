@@ -129,6 +129,17 @@ async function handle(req, res) {
       saveDB(db);
       return sendJson(res, 201, { added: added.length, skipped: arr.length - added.length, errors });
     }
+    // 按员工 / 公司批量删除（须放在单条记录路由之前，避免 id 误匹配）
+    if (p === "/api/records/by-name" && method === "DELETE") {
+      const name = String(url.searchParams.get("name") || "").trim();
+      const field = url.searchParams.get("field") === "company" ? "company" : "employee";
+      if (!name) return sendJson(res, 400, { error: "缺少参数 name" });
+      const before = db.records.length;
+      db.records = db.records.filter((x) => String(x[field] || "").trim() !== name);
+      const deleted = before - db.records.length;
+      saveDB(db);
+      return sendJson(res, 200, { ok: true, deleted });
+    }
     // 单条编辑 / 删除
     const m = p.match(/^\/api\/records\/([\w-]+)$/);
     if (m) {
